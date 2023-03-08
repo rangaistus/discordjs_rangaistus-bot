@@ -14,8 +14,14 @@ module.exports = {
         if (!user) {
             return await interaction.reply('User not found.');
         }
-        const createdDate = user.createdAt ? user.createdAt.toDateString() : 'Unable to get user information.';
-        const joinedDate = user.joinedAt ? user.joinedAt.toDateString() : 'Unable to get user information.';
+
+        const guildMember = await interaction.guild.members.fetch(user.id);
+        if (!guildMember) {
+            return await interaction.reply('User not found in the server.');
+        }
+
+        const createdDate = user.createdAt ? user.createdAt.toLocaleString() : 'Unable to get user information.';
+        const joinedDate = guildMember.joinedAt ? guildMember.joinedAt.toLocaleString() : 'Not available (user has not joined the server)';
 
         await interaction.reply({ embeds: [{
             color: '3447003',
