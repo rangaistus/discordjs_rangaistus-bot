@@ -1,0 +1,22 @@
+{
+  "name": "ranga-bot",
+  "version": "1.0.0",
+  "description": "A discord bot made by Rangaistus#5847.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "Ranga",
+    "Bot"
+  ],
+  "author": "Rangaistus#5847",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.7.1",
+    "dotenv": "^16.0.3"
+  },
+  "devDependencies": {
+    "eslint": "^8.35.0"
+  }
+}
