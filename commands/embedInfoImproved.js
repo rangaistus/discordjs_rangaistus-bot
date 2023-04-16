@@ -31,9 +31,12 @@ module.exports = {
         const createdDate = user.createdAt ? user.createdAt.toLocaleString() : 'Unable to get user information.';
         const joinedDate = guildMember.joinedAt ? guildMember.joinedAt.toLocaleString() : 'Not available (user has not joined the server)';
 
+
+        const randomColor = Math.floor(Math.random() * 16777215);
+
         await interaction.reply({
             embeds: [{
-                color: '3447003',
+                color: randomColor,
                 author: {
                     name: user.tag,
                     icon_url: user.avatarURL()
