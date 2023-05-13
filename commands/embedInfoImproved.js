@@ -7,47 +7,44 @@ module.exports = {
         .addUserOption(option =>
             option.setName('user')
                 .setDescription('Select a user.')
-                .setRequired(true)
+                .setRequired(false)
         ),
     async execute(interaction) {
-        const user = interaction.options.getUser('user');
-        const bot = interaction.client.user;
 
+        const randomColor = Math.floor(Math.random() * 16777215);
+
+        let user = interaction.options.getUser('user') || interaction.user;
         if (!user) {
+            user = interaction.user;
+        } else if (!user && interaction.options.getMember('user')) {
             return await interaction.reply('User not found.');
         }
+        const bot = interaction.client.user;
+        const guildMember = user ? await interaction.guild.members.fetch(user.id) : null;
+        const createdDate = user ? user.createdAt ? user.createdAt.toLocaleString() : 'Unable to get user information.' : 'User not found.';
+        const joinedDate = guildMember ? guildMember.joinedAt ? guildMember.joinedAt.toLocaleString() : 'Not available (user has not joined the server)' : 'User not found in the server.';
 
-        const guildMember = await interaction.guild.members.fetch(user.id);
-        if (!guildMember) {
-            return await interaction.reply('User not found in the server.');
-        }
 
         if (bot) {
-            if (user.id === bot.id) {
+            if (user && user.id === bot.id) {
                 return await interaction.reply('I am not a user.');
             }
         }
-
-        const createdDate = user.createdAt ? user.createdAt.toLocaleString() : 'Unable to get user information.';
-        const joinedDate = guildMember.joinedAt ? guildMember.joinedAt.toLocaleString() : 'Not available (user has not joined the server)';
-
-
-        const randomColor = Math.floor(Math.random() * 16777215);
 
         await interaction.reply({
             embeds: [{
                 color: randomColor,
                 author: {
-                    name: user.tag,
-                    icon_url: user.avatarURL()
+                    name: user ? user.tag : 'User not found.',
+                    icon_url: user ? user.avatarURL() : null
                 },
                 thumbnail: {
-                    url: user.avatarURL()
+                    url: user ? user.displayAvatarURL({ format: 'png', dynamic: true, size: 4096 }) : null
                 },
                 fields: [
                     {
                         name: 'ID',
-                        value: user.id,
+                        value: user ? user.id : 'User not found.',
                     },
                     {
                         name: 'Account Created At',
