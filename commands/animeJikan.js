@@ -1,25 +1,10 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { EmbedBuilder } = require('discord.js');
 
-
-// async function searchAnime(query) {
-//     const fetch = await import('node-fetch');
-//     const url = `https://api.jikan.moe/v4/anime?limit=1&q=${encodeURIComponent(query)}`;
-//     const response = await fetch.default(url);
-//     const data = await response.json();
-
-//     if (!data.data || data.data.length === 0) {
-//         throw new Error(`No anime found for query "${query}"`);
-//     }
-
-//     return data.data[0]; // Get the top result
-// }
-
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('anime')
-        .setDescription('Search for an anime on Jikan')
+        .setDescription('Search for an anime using Jikan API.')
         .addStringOption((option) =>
             option
                 .setName('search')
@@ -32,34 +17,36 @@ module.exports = {
         const url = `https://api.jikan.moe/v4/anime?limit=1&q=${encodeURIComponent(query)}`;
         const response = await fetch.default(url);
         const animeData = await response.json();
-        const animeObj = JSON.parse(JSON.stringify(animeData));
 
-        // console.log("Data: ", animeData, "\n", "Response:", response, "\n", "Query: ", query, "\n", "URL: ", url);
-
-        if (!animeObj || !animeObj.data || !animeObj.data[0] || !animeObj.data[0].node || !animeObj.data[0].node.titles) {
+        if (!animeData || animeData.data.length === 0) {
             return interaction.reply({
                 content: `No results found for "${query}"`,
             });
         }
 
-        const anime = animeObj.data[0];
+        const anime = animeData.data[0];
         const titles = anime.titles;
         const images = anime.images;
 
-
-        console.log("Title ", titles[2] || titles[1]);
+        console.log("Anime titles:", titles);
+        console.log("Themes: ", anime.themes, anime.demographics, anime.genres);
 
         const embed = new EmbedBuilder()
-            .setTitle(anime.titles[2] || anime.titles[1])
+            .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.avatarURL() })
+            .setTitle(titles[0]?.title)
+            .setURL(anime.url)
             .setDescription(anime.synopsis)
             .setThumbnail(images.jpg.large_image_url)
             .addFields(
-                { name: 'Type', value: anime.type, inline: true },
-                { name: 'Episodes', value: anime.episodes, inline: true },
-                { name: 'Score', value: anime.score, inline: true },
-                { name: 'Rating', value: anime.rating, inline: true }
+                { name: 'Type', value: anime.type ? anime.type : 'Not available', inline: true },
+                { name: 'Episodes', value: anime.episodes ? anime.episodes.toString() : 'Not available', inline: true },
+                { name: 'Score', value: anime.score ? anime.score.toString() : 'Not available', inline: true },
+                { name: 'Rating', value: anime.rating ? anime.rating : 'Not available', inline: true },
+                { name: 'Demographic', value: anime.demographics[0]?.name || anime.themes[0]?.name || 'Not Available', inline: true },
+                { name: 'Genres', value: anime.genres.map((genre) => genre.name).join(', ') ? anime.genres.map((genre) => genre.name).join(', ') : 'Not Available', inline: true }
             );
 
+        // console.log("Anime title eng:", titles[0]?.title);
 
         await interaction.reply({
             content: 'Here is the result of your search:',
