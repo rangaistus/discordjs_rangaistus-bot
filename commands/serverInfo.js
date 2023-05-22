@@ -1,64 +1,45 @@
-const { SlashCommandBuilder, GuildMember } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('server-info')
-        .setDescription('Provides information about the server.'),
+        .setDescription('Displays information about the server.'),
     async execute(interaction) {
+        const { guild } = interaction;
+        const { members } = guild;
+        const { name, ownerId, createdTimeStamp, memberCount } = guild;
+        const icon = guild.iconURL() || 'https://media.discordapp.net/attachments/978035586168418334/978304826351943800/unnamed.png';
+        const roles = guild.roles.cache.size;
+        const emojis = guild.emojis.cache.size;
+        const id = guild.id;
 
-        const guild = interaction.guild;
-        const guildOwner = await guild.members.fetch(guild.ownerId);
-        const guildOwnerTag = guildOwner.user.tag;
-        const guildOwnerAvatar = guildOwner.user.avatarURL({ format: 'png', dynamic: true, size: 4096 });
-        const guildOwnerID = guildOwner.user.id;
-        const guildOwnerCreatedDate = guildOwner.user.createdAt.toLocaleString();
-        const guildOwnerJoinedDate = guildOwner.joinedAt.toLocaleString();
-        const guildCreatedDate = guild.createdAt.toLocaleString();
-        const guildMemberCount = guild.memberCount - guild.members.cache.filter(member => member.user.bot).size;
-        const guildBotCount = guild.members.cache.filter(member => member.user.bot).size;
-        const guildMemberCountTotal = guild.memberCount;
-        const guildName = guild.name;
+        let baseVerification = guild.verificationLevel;
+
+        if (baseVerification === 0) baseVerification = 'None';
+        if (baseVerification === 1) baseVerification = 'Low';
+        if (baseVerification === 2) baseVerification = 'Medium';
+        if (baseVerification === 3) baseVerification = 'High';
+        if (baseVerification === 4) baseVerification = 'Very High';
+
 
         const randomColor = Math.floor(Math.random() * 16777215);
 
-        await interaction.reply({
-            embeds: [{
-                color: randomColor,
-                author: {
-                    name: guildName,
-                    icon_url: guild.iconURL({ format: 'png', dynamic: true, size: 4096 })
-                },
-                thumbnail: {
-                    url: guild.iconURL({ format: 'png', dynamic: true, size: 4096 })
-                },
-                fields: [
-                    {
-                        name: 'Owner',
-                        value: `${guildOwnerTag} (${guildOwnerID})`,
-                    },
-                    {
-                        name: `Owner's Account Created At`,
-                        value: guildOwnerCreatedDate,
-                    },
-                    {
-                        name: 'Guild Created At',
-                        value: guildCreatedDate,
-                    },
-                    {
-                        name: 'Member Count',
-                        value: `${guildMemberCount} members (${guildMemberCountTotal} total)`,
-                    },
-                    {
-                        name: 'Bot Count',
-                        value: guildBotCount,
-                    },
-                    {
-                        name: 'Total member count',
-                        value: guildMemberCountTotal,
-                    },
-                ],
-            }],
-        });
+        const embed = new EmbedBuilder()
+            .setColor(randomColor)
+            .setThumbnail(icon)
+            .setAuthor({ name: name, iconURL: icon })
+            .setFooter({ text: `Server ID: ${id}` })
+            .setTimestamp()
+            .addFields({ name: "Name", value: `${name}`, inline: false })
+            .addFields({ name: "Date Created", value: `<t:${parseInt(createdTimeStamp / 1000)}:R> (hover for complete date)`, inline: true })
+            .addFields({ name: "Server Owner", value: `<@${ownerId}>`, inline: true })
+            .addFields({ name: "Server Members", value: `${memberCount}`, inline: true })
+            .addFields({ name: "Role Number", value: `${roles}`, inline: true })
+            .addFields({ name: "Emoji Number", value: `${emojis}`, inline: true })
+            .addFields({ name: "Verification Level", value: `${baseVerification}`, inline: true })
+            .addFields({ name: "Server Boosts", value: `${guild.premiumSubscriptionCount}`, inline: true })
+
+        await interaction.reply({ embeds: [embed] });
 
     }
-};
+}

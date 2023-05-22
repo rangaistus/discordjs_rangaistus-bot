@@ -29,6 +29,8 @@ for (const file of commandFiles) {
 client.once(Events.ClientReady, discordBot => {
     console.log(`Ready! Logged in as ${discordBot.user.tag}`);
 
+    // console.log("Bot latency: ", Date.now() - discordBot.readyTimestamp, "ms");
+
     client.user.setPresence({
         activities: [{ name: `Rangaistus#5847`, type: ActivityType.Listening }],
         status: 'dnd',
