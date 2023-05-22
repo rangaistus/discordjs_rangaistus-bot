@@ -7,8 +7,8 @@ module.exports = {
     async execute(interaction) {
         const { guild } = interaction;
         const { members } = guild;
-        const { name, ownerId, createdTimeStamp, memberCount } = guild;
-        const icon = guild.iconURL() || 'https://media.discordapp.net/attachments/978035586168418334/978304826351943800/unnamed.png';
+        const { name, ownerId, memberCount } = guild;
+        const icon = guild.iconURL({ format: 'png', dynamic: true, size: 4096 }) || 'https://media.discordapp.net/attachments/978035586168418334/978304826351943800/unnamed.png';
         const roles = guild.roles.cache.size;
         const emojis = guild.emojis.cache.size;
         const id = guild.id;
@@ -21,6 +21,7 @@ module.exports = {
         if (baseVerification === 3) baseVerification = 'High';
         if (baseVerification === 4) baseVerification = 'Very High';
 
+        const createdDateTemplate = `<t:${Math.floor(guild.createdTimestamp / 1000)}:R> (Hover for exact date)`;
 
         const randomColor = Math.floor(Math.random() * 16777215);
 
@@ -31,7 +32,7 @@ module.exports = {
             .setFooter({ text: `Server ID: ${id}` })
             .setTimestamp()
             .addFields({ name: "Name", value: `${name}`, inline: false })
-            .addFields({ name: "Date Created", value: `<t:${parseInt(createdTimeStamp / 1000)}:R> (hover for complete date)`, inline: true })
+            .addFields({ name: "Date Created", value: createdDateTemplate, inline: true })
             .addFields({ name: "Server Owner", value: `<@${ownerId}>`, inline: true })
             .addFields({ name: "Server Members", value: `${memberCount}`, inline: true })
             .addFields({ name: "Role Number", value: `${roles}`, inline: true })
