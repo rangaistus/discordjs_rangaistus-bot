@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const fs = require('node:fs');
 const { EmbedBuilder } = require('discord.js');
+const path = require('path');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -20,7 +21,7 @@ module.exports = {
         const folders = new Set();
 
         for (const command of commands) {
-            const split = command.filePath.split('\\');
+            const split = command.filePath.split(path.sep);
             const folderName = split[split.length - 2];
             folders.add(folderName);
         }
@@ -33,7 +34,7 @@ module.exports = {
             for (const file of folder) {
                 const commandFile = require(`../${folderName}/${file}`);
                 if (!commandFile.data) {
-                    if(commandFile.name === "eval") continue;
+                    if (commandFile.name === "eval") continue;
                     console.error(`Command ${file} is missing the 'data' property.`);
                     continue;
                 }
