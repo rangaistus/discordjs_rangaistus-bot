@@ -68,27 +68,36 @@ client.once(Events.ClientReady, bot => {
 
 // Interaction handling with basic error boundary
 client.on(Events.InteractionCreate, async interaction => {
-	if (!interaction.isChatInputCommand()) return;
-
-	const command = interaction.client.commands.get(interaction.commandName);
-	if (!command) {
-		logger.warn(`No command matching ${interaction.commandName} was found.`);
+	// handle slash commands
+	if (interaction.isChatInputCommand()) {
+		const command = interaction.client.commands.get(interaction.commandName);
+		if (!command) {
+			logger.warn(`No command matching ${interaction.commandName} was found.`);
+			return;
+		}
+		try {
+			await command.execute(interaction);
+		} catch (error) {
+			logger.error(`Command ${interaction.commandName} failed: ${error.stack || error}`);
+			try {
+				if (interaction.replied || interaction.deferred) {
+					await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+				} else {
+					await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+				}
+			} catch (replyErr) {
+				logger.error('Failed to send error reply to interaction: ' + (replyErr.stack || replyErr));
+			}
+		}
 		return;
 	}
 
-	try {
-		await command.execute(interaction);
-	} catch (error) {
-		logger.error(`Command ${interaction.commandName} failed: ${error.stack || error}`);
-		try {
-			if (interaction.replied || interaction.deferred) {
-				await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-			} else {
-				await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
-			}
-		} catch (replyErr) {
-			logger.error('Failed to send error reply to interaction: ' + (replyErr.stack || replyErr));
-		}
+	// Let command-level handlers deal with component interactions (selects/buttons).
+	// Acknowledging components globally can conflict with command code that also
+	// defers or updates the same interaction (causing Unknown interaction errors).
+	if (interaction.isStringSelectMenu()) {
+		logger.debug('StringSelectMenu interaction received: passing to command-level handler.');
+		return;
 	}
 });
 
@@ -125,7 +134,6 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 process.on('uncaughtException', err => {
 	logger.error('Uncaught Exception:', err.stack || err);
-	// depending on severity, consider exiting and letting a process manager restart
 });
 
 // Start login
