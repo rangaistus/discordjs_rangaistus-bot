@@ -1,99 +1,135 @@
-// Require the ncessary discord.js classes
+// Safer startup: use dotenv and environment variables for secrets
+require('dotenv').config();
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, Collection, Events, GatewayIntentBits, ActivityType, MessageManager, Partials } = require('discord.js');
-const evalCommand = require('./commands/Utility/eval.js');
-const { token } = require('./config.json');
+const { Client, Collection, Events, GatewayIntentBits, ActivityType, Partials } = require('discord.js');
+const logger = require('./utils/logger');
 
-// Create a new client instance
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessages], partials: [Partials.MessageContent, Partials.Message] });
+const TOKEN = process.env.DISCORD_TOKEN;
+const PREFIX = process.env.PREFIX || require('./config.json').prefix || '!';
+
+if (!TOKEN) {
+	logger.error('DISCORD_TOKEN is not set. Please create a .env file or set the environment variable.');
+	process.exit(1);
+}
+
+// Create a new client instance with recommended minimal intents
+const client = new Client({
+	intents: [
+		GatewayIntentBits.Guilds,
+		GatewayIntentBits.GuildMessages,
+		GatewayIntentBits.MessageContent,
+		GatewayIntentBits.GuildMembers,
+	],
+	partials: [Partials.Message, Partials.Channel, Partials.Reaction],
+});
 
 client.commands = new Collection();
 const commands = [];
-module.exports = {commands};
-const foldersPath = path.join(__dirname, 'commands');
-const commandFolders = fs.readdirSync(foldersPath);
+module.exports = { commands };
 
-for (const folder of commandFolders) {
-	const commandsPath = path.join(foldersPath, folder);
-	const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-	for (const file of commandFiles) {
-		const filePath = path.join(commandsPath, file);
-		const command = require(filePath);
-		// Set a new item in the Collection with the key as the command name and the value as the exported module
-		if ('data' in command && 'execute' in command) {
-			client.commands.set(command.data.name, command);
-            command.data["filePath"] = filePath;
-            commands.push(command.data.toJSON());
-		} else {
-			console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+// Load commands dynamically
+const foldersPath = path.join(__dirname, 'commands');
+if (fs.existsSync(foldersPath)) {
+	const commandFolders = fs.readdirSync(foldersPath);
+	for (const folder of commandFolders) {
+		const commandsPath = path.join(foldersPath, folder);
+		if (!fs.existsSync(commandsPath)) continue;
+		const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+		for (const file of commandFiles) {
+			const filePath = path.join(commandsPath, file);
+			try {
+				const command = require(filePath);
+				if (command && command.data && command.execute) {
+					client.commands.set(command.data.name, command);
+					// store for deploy-commands usage
+					if (typeof command.data.toJSON === 'function') {
+						command.data.filePath = filePath;
+						commands.push(command.data.toJSON());
+					}
+				} else {
+					logger.warn(`The command at ${filePath} is missing a required "data" or "execute" property.`);
+				}
+			} catch (err) {
+				logger.error(`Failed to load command at ${filePath}: ${err.message}`);
+			}
 		}
 	}
 }
 
-// When the client is ready, run this code (only once)
-// We use 'c' for the event parameter to keep it separate from the already defined 'client'
-client.once(Events.ClientReady, discordBot => {
-    console.log(`Ready! Logged in as ${discordBot.user.tag}`);
-
-    // console.log("Bot latency: ", Date.now() - discordBot.readyTimestamp, "ms");
-
-    client.user.setPresence({
-        activities: [{ name: `Rangaistus#5847`, type: ActivityType.Listening }],
-        status: 'dnd',
-    })
+// Ready
+client.once(Events.ClientReady, bot => {
+	logger.info(`Ready! Logged in as ${bot.user.tag}`);
+	client.user.setPresence({
+		activities: [{ name: 'Owner: rangaistus / Rangaistus#5847', type: ActivityType.Playing }],
+		status: 'dnd'
+	});
 });
 
+// Interaction handling with basic error boundary
 client.on(Events.InteractionCreate, async interaction => {
 	if (!interaction.isChatInputCommand()) return;
 
 	const command = interaction.client.commands.get(interaction.commandName);
-
 	if (!command) {
-		console.error(`No command matching ${interaction.commandName} was found.`);
+		logger.warn(`No command matching ${interaction.commandName} was found.`);
 		return;
 	}
 
 	try {
 		await command.execute(interaction);
 	} catch (error) {
-		console.error(error);
-		if (interaction.replied || interaction.deferred) {
-			await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-		} else {
-			await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+		logger.error(`Command ${interaction.commandName} failed: ${error.stack || error}`);
+		try {
+			if (interaction.replied || interaction.deferred) {
+				await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+			} else {
+				await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+			}
+		} catch (replyErr) {
+			logger.error('Failed to send error reply to interaction: ' + (replyErr.stack || replyErr));
 		}
 	}
 });
 
-
-// server command without slashcommands 
-// make a test command that returns the server name and member count
+// Simple message command support (legacy)
 client.on('messageCreate', async message => {
+	if (message.author.bot) return;
+	if (!message.content.startsWith(PREFIX)) return;
 
-    var { prefix } = require('./config.json');
+	const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+	const cmd = args.shift().toLowerCase();
 
-    if (message.author.bot) return;
+	if (cmd === 'test') {
+		try {
+			await message.reply('Used the test command!');
+		} catch (error) {
+			logger.error('Error running test command: ' + (error.stack || error));
+			try { await message.reply('There was an error trying to execute that command!'); } catch { };
+		}
+	}
 
-    if (message.content.startsWith(prefix) || message.author.bot) {
-        const args = message.content.slice(prefix.length).trim().split(/ +/);
-        const command = args.shift().toLowerCase();
-
-        if (command === `test`) {
-            try {
-                await message.reply('Used the test command!');
-            } catch (error) {
-                await message.reply('There was an error trying to execute that command!');
-                console.error(error);
-            }
-        }
-
-        if (command === `eval`) {
-            evalCommand.execute(message, args);
-        }
-
-    }
+	if (cmd === 'eval') {
+		try {
+			const evalCommand = require('./commands/Utility/eval.js');
+			await evalCommand.execute(message, args);
+		} catch (err) {
+			logger.error('Eval command failed: ' + (err.stack || err));
+		}
+	}
 });
 
-// Log in to Discord with your client's token
-client.login(token);
+// Global error handlers
+process.on('unhandledRejection', (reason, promise) => {
+	logger.error('Unhandled Rejection at:', reason);
+});
+process.on('uncaughtException', err => {
+	logger.error('Uncaught Exception:', err.stack || err);
+	// depending on severity, consider exiting and letting a process manager restart
+});
+
+// Start login
+client.login(TOKEN).catch(err => {
+	logger.error('Failed to login: ' + (err.stack || err));
+	process.exit(1);
+});

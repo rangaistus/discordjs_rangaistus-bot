@@ -12,3 +12,9 @@ node_modules
 
 # ignore notes file
 notes
+
+# common
+node_modules/
+package-lock.json
+.DS_Store
+logs/

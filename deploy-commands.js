@@ -1,49 +1,78 @@
+require('dotenv').config();
 const { REST, Routes } = require('discord.js');
-const { clientId, guildId, token } = require('./config.json');
 const fs = require('node:fs');
 const path = require('node:path');
+const logger = require('./utils/logger');
+
+const TOKEN = process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_IDS = process.env.GUILD_IDS;
+const DEPLOY_SCOPE = process.env.DEPLOY_SCOPE; // 'global' to force global deploy
+
+// debug info (avoid logging token)
+console.log("CLIENT_ID: " + CLIENT_ID);
+console.log("GUILD_IDS: " + GUILD_IDS);
+console.log("DEPLOY_SCOPE: " + DEPLOY_SCOPE);
+
+if (!TOKEN) {
+	logger.error('DISCORD_TOKEN is not set. Aborting deploy-commands.');
+	process.exit(1);
+}
 
 const commands = [];
 module.exports = { commands };
-// Grab all the command files from the commands directory you created earlier
-const foldersPath = path.join(__dirname, 'commands');
-const commandFolders = fs.readdirSync(foldersPath);
 
-for (const folder of commandFolders) {
-	// Grab all the command files from the commands directory you created earlier
-	const commandsPath = path.join(foldersPath, folder);
-	const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-	// Grab the SlashCommandBuilder#toJSON() output of each command's data for deployment
-	for (const file of commandFiles) {
-		const filePath = path.join(commandsPath, file);
-		const command = require(filePath);
-		if ('data' in command && 'execute' in command) {
-			commands.push(command.data.toJSON());
-		} else {
-			console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+// Load commands
+const foldersPath = path.join(__dirname, 'commands');
+if (fs.existsSync(foldersPath)) {
+	const commandFolders = fs.readdirSync(foldersPath);
+	for (const folder of commandFolders) {
+		const commandsPath = path.join(foldersPath, folder);
+		if (!fs.existsSync(commandsPath)) continue;
+		const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+		for (const file of commandFiles) {
+			const filePath = path.join(commandsPath, file);
+			const command = require(filePath);
+			if ('data' in command && 'execute' in command) {
+				if (typeof command.data.toJSON === 'function') commands.push(command.data.toJSON());
+			} else {
+				logger.warn(`The command at ${filePath} is missing a required "data" or "execute" property.`);
+			}
 		}
 	}
 }
 
-// Construct and prepare an instance of the REST module
-const rest = new REST().setToken(token);
+const rest = new REST({ version: '10' }).setToken(TOKEN);
 
-
-
-// and deploy your commands!
 (async () => {
 	try {
+		logger.info(`Started refreshing ${commands.length} application (/) commands.`);
 
-		console.log(`Started refreshing ${commands.length} application (/) commands.`);
-
-		// The put method is used to fully refresh all commands in the guild with the current set
-		await rest.put(
-			Routes.applicationCommands(clientId, guildId),
-			{ body: commands },
-		);
-		console.log(`Successfully reloaded ${commands.length} application (/) commands.`);
+		if (GUILD_IDS) {
+			// support comma-separated list of guild IDs
+			const guildIds = String(GUILD_IDS).split(',').map(g => g.trim()).filter(Boolean);
+			for (const gid of guildIds) {
+				try {
+					logger.info(`Deploying ${commands.length} commands to guild ${gid}...`);
+					await rest.put(Routes.applicationGuildCommands(CLIENT_ID, gid), { body: commands });
+					logger.info(`Successfully reloaded ${commands.length} guild (/) commands for ${gid}.`);
+				} catch (err) {
+					logger.error(`Failed to deploy to guild ${gid}: ${err.stack || err}`);
+				}
+				// small delay between guild deploys to reduce rate limit pressure
+				await new Promise(resolve => setTimeout(resolve, 1000));
+			}
+		} else if (DEPLOY_SCOPE === 'global') {
+			// explicit global deploy
+			logger.info('No GUILD_IDS provided; DEPLOY_SCOPE=global set — deploying global commands.');
+			await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+			logger.info(`Successfully reloaded ${commands.length} global (/) commands.`);
+		} else {
+			// safety: do not deploy globally by default
+			logger.warn('No GUILD_IDS set and DEPLOY_SCOPE!=global — skipping global deployment. To force global deploy set DEPLOY_SCOPE=global in your environment.');
+		}
 	} catch (error) {
-		// And of course, make sure you catch and log any errors!
-		console.error(error);
+		logger.error('Failed to deploy commands: ' + (error.stack || error));
+		process.exit(1);
 	}
 })();

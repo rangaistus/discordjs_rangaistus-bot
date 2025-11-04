@@ -4,8 +4,10 @@
   "description": "A discord bot made by Rangaistus#5847.",
   "main": "index.js",
   "scripts": {
-    "test": "nodemon .",
-    "start": "node ."
+    "dev": "nodemon .",
+    "start": "node .",
+    "deploy:commands": "node deploy-commands.js",
+    "lint": "eslint . --ext .js"
   },
   "keywords": [
     "Ranga",
